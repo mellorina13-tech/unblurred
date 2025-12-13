@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+
+    <!-- Mobile & WebView Optimization -->
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Depix">
+
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="msapplication-TileColor" content="#667eea">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+
+    <!-- Title -->
+    <title>Depixelization - Pixelli Fotoğrafları Temizle</title>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="40" height="40" rx="8" fill="url(#gradient)" />
+                    <path d="M12 12H28V28H12V12Z" stroke="white" stroke-width="2" stroke-linecap="round" />
+                    <circle cx="16" cy="16" r="2" fill="white" />
+                    <circle cx="24" cy="16" r="2" fill="white" />
+                    <circle cx="16" cy="24" r="2" fill="white" />
+                    <circle cx="24" cy="24" r="2" fill="white" />
+                    <defs>
+                        <linearGradient id="gradient" x1="0" y1="0" x2="40" y2="40">
+                            <stop offset="0%" stop-color="#667eea" />
+                            <stop offset="100%" stop-color="#764ba2" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <h1>Depixelization</h1>
+            </div>
+            <p class="subtitle">Pixelli fotoğraflarınızı temizleyin</p>
+            <div style="display: flex; gap: 1rem; align-items: center; justify-content: center; margin-top: 1rem;">
+                <a href="/info" style="color: #667eea; text-decoration: none; font-size: 0.9rem;">ℹ️ Nasıl çalışır?</a>
+                <select id="langSelect" onchange="switchLanguage(this.value)"
+                    style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem; border-radius: 8px; cursor: pointer;">
+                    <option value="tr">🇹🇷 Türkçe</option>
+                    <option value="en">🇬🇧 English</option>
+                </select>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Upload Section -->
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept="image/png,image/jpeg,image/jpg" hidden>
+                    <div class="upload-icon">
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M32 16V48M16 32H48" stroke="currentColor" stroke-width="4"
+                                stroke-linecap="round" />
+                            <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" stroke-width="3"
+                                stroke-dasharray="8 8" />
+                        </svg>
+                    </div>
+                    <h2>Fotoğraf Yükle</h2>
+                    <p>Pixelli fotoğrafınızı sürükleyip bırakın veya tıklayın</p>
+                    <button class="btn-primary" onclick="document.getElementById('fileInput').click()">
+                        Dosya Seç
+                    </button>
+                    <p class="file-info">PNG veya JPG formatında, maksimum 16MB</p>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="preview-section" id="previewSection" style="display: none;">
+                    <div class="preview-card">
+                        <h3>Yüklenen Fotoğraf</h3>
+                        <img id="previewImage" alt="Preview">
+                        <button class="btn-secondary" onclick="resetUpload()">Değiştir</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="settings-section">
+                <button class="settings-toggle" onclick="toggleSettings()">
+                    <span>Gelişmiş Ayarlar</span>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
+
+                <div class="settings-content" id="settingsContent" style="display: none;">
+                    <div class="setting-item">
+                        <label for="averageType">Ortalama Tipi:</label>
+                        <select id="averageType" class="input-field">
+                            <option value="gammacorrected">Gamma Corrected (Varsayılan)</option>
+                            <option value="linear">Linear</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="backgroundColor">Arkaplan Rengi (R,G,B):</label>
+                        <input type="text" id="backgroundColor" class="input-field" placeholder="Örn: 40,41,35">
+                        <small>Editör arkaplan rengini filtrelemek için (opsiyonel)</small>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="searchImage">Search Image:</label>
+                        <select id="searchImage" class="input-field">
+                            <option value="images/searchimages/debruinseq_notepad_Windows10_closeAndSpaced.png">Notepad
+                                Windows 10 (Varsayılan)</option>
+                        </select>
+                        <small>Karakter desenlerini aramak için kullanılan referans görüntü</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Process Button -->
+            <div class="action-section" id="actionSection" style="display: none;">
+                <button class="btn-process" id="processBtn" onclick="processImage()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" fill="currentColor" />
+                    </svg>
+                    Fotoğrafı Temizle
+                </button>
+            </div>
+
+            <!-- Loading Section -->
+            <div class="loading-section" id="loadingSection" style="display: none;">
+                <div class="spinner"></div>
+                <p>Fotoğraf işleniyor...</p>
+                <small>Bu işlem birkaç saniye sürebilir</small>
+                <button class="btn-secondary" id="cancelBtn" onclick="cancelProcess()"
+                    style="margin-top: 1.5rem;">İşlemi
+                    Durdur</button>
+            </div>
+
+            <!-- Result Section -->
+            <div class="result-section" id="resultSection" style="display: none;">
+                <div class="result-card">
+                    <h3>✨ Temizlenmiş Fotoğraf</h3>
+                    <img id="resultImage" alt="Result">
+                    <div class="result-actions">
+                        <button class="btn-download" id="downloadBtn">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 2V14M10 14L6 10M10 14L14 10M3 18H17" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            İndir
+                        </button>
+                        <button class="btn-secondary" onclick="resetAll()">Yeni Fotoğraf</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Section -->
+            <div class="error-section" id="errorSection" style="display: none;">
+                <div class="error-card">
+                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="24" cy="24" r="20" stroke="#ef4444" stroke-width="3" />
+                        <path d="M24 16V26M24 30V32" stroke="#ef4444" stroke-width="3" stroke-linecap="round" />
+                    </svg>
+                    <h3>Hata Oluştu</h3>
+                    <p id="errorMessage"></p>
+                    <button class="btn-secondary" onclick="resetAll()">Tekrar Dene</button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Depix algoritması kullanılarak geliştirilmiştir</p>
+            <p class="footer-note">⚡ Bu araç pixellenmiş metinleri kurtarmak için tasarlanmıştır</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
