@@ -7,6 +7,7 @@ import uuid
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 # Add current directory to path for depixlib imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +43,9 @@ os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 # Job tracking dictionary
 jobs = {}
 jobs_lock = threading.Lock()
+
+# Thread pool for background processing
+executor = ThreadPoolExecutor(max_workers=3)
 
 
 def allowed_file(filename):
@@ -219,13 +223,11 @@ def upload_file():
                 'created_at': datetime.now().isoformat()
             }
 
-        # Start background processing
-        thread = threading.Thread(
-            target=process_image_background,
-            args=(job_id, filepath, search_image_path, background_color, average_type)
+        # Start background processing using thread pool
+        executor.submit(
+            process_image_background,
+            job_id, filepath, search_image_path, background_color, average_type
         )
-        thread.daemon = True
-        thread.start()
 
         # Return job ID immediately
         return jsonify({
