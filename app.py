@@ -4,6 +4,10 @@ import logging
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
+import sys
+
+# Add current directory to path for depixlib imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from depixlib.helpers import check_color
 from depixlib.functions import (
@@ -177,7 +181,10 @@ def upload_file():
             return jsonify({'error': f'Processing failed: {error}'}), 500
         
         # Clean up uploaded file
-        os.remove(filepath)
+        try:
+            os.remove(filepath)
+        except:
+            pass
         
         return jsonify({
             'success': True,
@@ -217,11 +224,32 @@ def info():
     return render_template('info.html')
 
 
+@app.route('/health')
+def health():
+    """Health check endpoint for monitoring"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat()
+    })
+
+
 if __name__ == '__main__':
+    # Get port from environment variable (Render sets this)
+    port = int(os.environ.get('PORT', 5000))
+    
     print("=" * 60)
     print("🚀 Depixelization Web Application")
     print("=" * 60)
-    print("📍 Server starting at: http://localhost:5000")
+    print(f"📍 Server starting at: http://0.0.0.0:{port}")
+    print(f"🌍 Environment: {'Production' if not os.environ.get('FLASK_DEBUG') else 'Development'}")
     print("📝 Press CTRL+C to stop the server")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # Use debug=False in production
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    app.run(
+        debug=debug_mode,
+        host='0.0.0.0',
+        port=port
+    )
