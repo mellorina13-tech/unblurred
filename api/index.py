@@ -1,5 +1,4 @@
 from app import app
 
-# Vercel serverless function handler
-def handler(request):
-    return app(request.environ, lambda *args: None)
+# Vercel will automatically use this app object
+# No need for custom handler - Flask apps are natively supported
