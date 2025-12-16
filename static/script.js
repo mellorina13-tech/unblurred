@@ -302,12 +302,24 @@ async function processImage() {
     formData.append('search_image', searchImage);
 
     try {
+        // Create an AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+
         const response = await fetch('/upload', {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
         });
 
+        clearTimeout(timeoutId);
         clearTimeout(loadingTimeout);
+
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned invalid response format');
+        }
 
         const data = await response.json();
 
@@ -321,7 +333,14 @@ async function processImage() {
         }
     } catch (error) {
         clearTimeout(loadingTimeout);
-        showError('Server connection failed: ' + error.message);
+
+        if (error.name === 'AbortError') {
+            showError('İşlem zaman aşımına uğradı. Lütfen daha küçük bir resim deneyin veya tekrar deneyin.');
+        } else if (error.message.includes('JSON')) {
+            showError('Sunucu bağlantısı kesildi. Lütfen tekrar deneyin.');
+        } else {
+            showError('Server connection failed: ' + error.message);
+        }
     } finally {
         document.getElementById('loadingSection').style.display = 'none';
         isProcessing = false;
