@@ -302,49 +302,87 @@ async function processImage() {
     formData.append('search_image', searchImage);
 
     try {
-        // Create an AbortController for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
-
+        // Upload and get job ID
         const response = await fetch('/upload', {
             method: 'POST',
-            body: formData,
-            signal: controller.signal
+            body: formData
         });
 
-        clearTimeout(timeoutId);
-        clearTimeout(loadingTimeout);
-
-        // Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Server returned invalid response format');
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Upload failed');
         }
 
         const data = await response.json();
 
-        if (response.ok && data.success) {
-            // Success
-            outputFilename = data.output_file;
-            showResult(outputFilename);
-        } else {
-            // Error
-            showError(data.error || 'Bir hata oluştu.');
+        if (!data.success || !data.job_id) {
+            throw new Error('Invalid server response');
         }
+
+        // Poll for job status
+        await pollJobStatus(data.job_id, loadingTimeout);
+
     } catch (error) {
         clearTimeout(loadingTimeout);
-
-        if (error.name === 'AbortError') {
-            showError('İşlem zaman aşımına uğradı. Lütfen daha küçük bir resim deneyin veya tekrar deneyin.');
-        } else if (error.message.includes('JSON')) {
-            showError('Sunucu bağlantısı kesildi. Lütfen tekrar deneyin.');
-        } else {
-            showError('Server connection failed: ' + error.message);
-        }
-    } finally {
+        showError('Server connection failed: ' + error.message);
         document.getElementById('loadingSection').style.display = 'none';
         isProcessing = false;
     }
+}
+
+// Poll job status
+async function pollJobStatus(jobId, loadingTimeout) {
+    const maxAttempts = 120; // 2 minutes max (120 * 1 second)
+    let attempts = 0;
+
+    const checkStatus = async () => {
+        try {
+            const response = await fetch(`/job-status/${jobId}`);
+
+            if (!response.ok) {
+                throw new Error('Failed to check job status');
+            }
+
+            const job = await response.json();
+
+            if (job.status === 'completed') {
+                clearTimeout(loadingTimeout);
+                document.getElementById('loadingSection').style.display = 'none';
+                isProcessing = false;
+                outputFilename = job.output_file;
+                showResult(outputFilename);
+                return;
+            }
+
+            if (job.status === 'failed') {
+                clearTimeout(loadingTimeout);
+                document.getElementById('loadingSection').style.display = 'none';
+                isProcessing = false;
+                showError(job.error || 'Processing failed');
+                return;
+            }
+
+            // Still processing, check again
+            attempts++;
+            if (attempts < maxAttempts) {
+                setTimeout(checkStatus, 1000); // Check every 1 second
+            } else {
+                clearTimeout(loadingTimeout);
+                document.getElementById('loadingSection').style.display = 'none';
+                isProcessing = false;
+                showError('İşlem zaman aşımına uğradı. Lütfen tekrar deneyin.');
+            }
+
+        } catch (error) {
+            clearTimeout(loadingTimeout);
+            document.getElementById('loadingSection').style.display = 'none';
+            isProcessing = false;
+            showError('Server connection failed: ' + error.message);
+        }
+    };
+
+    // Start polling
+    checkStatus();
 }
 
 // Cancel processing
