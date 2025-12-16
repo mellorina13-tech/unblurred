@@ -23,10 +23,19 @@ from depixlib.Rectangle import Rectangle
 # Configure logging
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 
-app = Flask(__name__)
+# Get the base directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Configure Flask with proper paths for Vercel
+app = Flask(__name__,
+            template_folder=os.path.join(BASE_DIR, 'templates'),
+            static_folder=os.path.join(BASE_DIR, 'static'))
+
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['OUTPUT_FOLDER'] = 'outputs'
+
+# Use /tmp for Vercel serverless (only writable directory)
+app.config['UPLOAD_FOLDER'] = '/tmp/uploads'
+app.config['OUTPUT_FOLDER'] = '/tmp/outputs'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 
 # Create necessary folders
@@ -115,10 +124,10 @@ def depixelize_image(pixelated_path, search_path, background_color=None, average
         # Generate unique output filename
         output_filename = f"depixelized_{uuid.uuid4().hex[:8]}.png"
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
-        
+
         logging.info(f"Saving output image to: {output_path}")
         unpixelatedOutputImage.save(output_path)
-        
+
         return output_path, None
 
     except Exception as e:
@@ -135,25 +144,30 @@ def index():
 def upload_file():
     if 'pixelated_image' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
-    
+
     file = request.files['pixelated_image']
-    
+
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    
+
     if not allowed_file(file.filename):
         return jsonify({'error': 'Invalid file type. Please upload PNG or JPG'}), 400
-    
+
     try:
         # Save uploaded file
         filename = secure_filename(file.filename)
         unique_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(filepath)
-        
-        # Get search image (default or custom)
-        search_image_path = request.form.get('search_image', 'images/searchimages/debruinseq_notepad_Windows10_closeAndSpaced.png')
-        
+
+        # Get search image - use absolute path from BASE_DIR
+        default_search = os.path.join(BASE_DIR, 'images/searchimages/debruinseq_notepad_Windows10_closeAndSpaced.png')
+        search_image_path = request.form.get('search_image', default_search)
+
+        # If relative path provided, make it absolute
+        if not os.path.isabs(search_image_path):
+            search_image_path = os.path.join(BASE_DIR, search_image_path)
+
         # Get optional parameters
         background_color = None
         if request.form.get('background_color'):
@@ -162,28 +176,31 @@ def upload_file():
                 background_color = tuple(map(int, bg_color_str.split(',')))
             except:
                 pass
-        
+
         average_type = request.form.get('average_type', 'gammacorrected')
-        
+
         # Process the image
         output_path, error = depixelize_image(
-            filepath, 
-            search_image_path, 
-            background_color, 
+            filepath,
+            search_image_path,
+            background_color,
             average_type
         )
-        
+
         if error:
             return jsonify({'error': f'Processing failed: {error}'}), 500
-        
+
         # Clean up uploaded file
-        os.remove(filepath)
-        
+        try:
+            os.remove(filepath)
+        except:
+            pass
+
         return jsonify({
             'success': True,
             'output_file': os.path.basename(output_path)
         })
-    
+
     except Exception as e:
         logging.error(f"Upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -209,7 +226,11 @@ def preview_file(filename):
 
 @app.route('/manifest.json')
 def manifest():
-    return send_file('static/manifest.json', mimetype='application/manifest+json')
+    try:
+        manifest_path = os.path.join(BASE_DIR, 'static/manifest.json')
+        return send_file(manifest_path, mimetype='application/manifest+json')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
 
 
 @app.route('/info')
